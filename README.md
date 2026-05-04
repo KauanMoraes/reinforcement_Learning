@@ -1,5 +1,5 @@
 # Créditos: 
-## ganacim/ml-2025
+## Extendido da branch kauan/reinforcement de ganacim/ml-2025
 https://github.com/ganacim/ml-2025.git
 
 # Machine Learing Course: Code and Exercices
