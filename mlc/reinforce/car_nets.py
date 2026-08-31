@@ -44,14 +44,14 @@ class ResBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
         super(ResBlock, self).__init__()
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.bn1 = nn.GroupNorm(num_groups=4, num_channels=out_channels)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.bn2 = nn.GroupNorm(num_groups=4, num_channels=out_channels)
 
         if stride != 1 or in_channels != out_channels:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1),
-                nn.BatchNorm2d(out_channels)
+                nn.GroupNorm(num_groups=4, num_channels=out_channels)
             )
         else:
             self.shortcut = nn.Identity()
@@ -163,4 +163,4 @@ class ModeloDQN(nn.Module):
         q1, q2, q3 = self.get_q_values(x)
         ensemble = q1 + q2 + q3
         #duelingQ = self.adv(x) + self.v(x)
-        return ensemble
+        return ensemble #dimensão (batch, dim_out)
