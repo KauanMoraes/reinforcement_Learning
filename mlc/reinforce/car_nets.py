@@ -72,7 +72,7 @@ class ModeloDQN(nn.Module):
         self.dim_hidden = dim_hidden
         self.init_ch = init_ch
         hidden_chs = [init_ch] + [16, 32, 64, 128] #[24, 32, 32, 64, 128, 256]
-        conv_layers = []
+        #conv_layers = []
         self.c_layers = nn.Sequential(nn.Conv2d(hidden_chs[0], hidden_chs[1], kernel_size=8, stride=4), # => ( 16, 23, 23)
                     ResBlock(hidden_chs[1], hidden_chs[1], stride=1),
                     nn.Conv2d(hidden_chs[1], hidden_chs[2], kernel_size=4, stride=2,), # => ( 32, 10, 10)
@@ -86,26 +86,26 @@ class ModeloDQN(nn.Module):
                     )
                     
 
-        for i in range(1, len(hidden_chs) - 1):
-            conv_layers += [ResBlock(hidden_chs[i-1], hidden_chs[i-1], stride=1),
-                            nn.Conv2d(hidden_chs[i-1], hidden_chs[i], kernel_size=3, stride=1, padding=1),                           
-                            nn.ReLU(),
-                            nn.BatchNorm2d(hidden_chs[i]),
-                            # nn.Conv2d(hidden_chs[i], hidden_chs[i], kernel_size=3, stride=1, padding=1),
-                            # nn.ReLU(),            
-                            # nn.BatchNorm2d(hidden_chs[i]),
-                            nn.MaxPool2d(kernel_size=2, stride=2)]
+        # for i in range(1, len(hidden_chs) - 1):
+        #     conv_layers += [ResBlock(hidden_chs[i-1], hidden_chs[i-1], stride=1),
+        #                     nn.Conv2d(hidden_chs[i-1], hidden_chs[i], kernel_size=3, stride=1, padding=1),                           
+        #                     nn.ReLU(),
+        #                     nn.BatchNorm2d(hidden_chs[i]),
+        #                     # nn.Conv2d(hidden_chs[i], hidden_chs[i], kernel_size=3, stride=1, padding=1),
+        #                     # nn.ReLU(),            
+        #                     # nn.BatchNorm2d(hidden_chs[i]),
+        #                     nn.MaxPool2d(kernel_size=2, stride=2)]
 
-        self.conv_layers = nn.Sequential(
-            *conv_layers,
-            nn.Conv2d(hidden_chs[-2], hidden_chs[-1], kernel_size=3),
-            nn.Flatten(start_dim=1))
-        self.linear_layers = nn.Sequential(
-            nn.Linear(hidden_chs[-1] * 36, self.dim_hidden),
-            # nn.Dropout(p=0.1),  # Optional dropout layer
-            nn.ReLU(),
-            nn.BatchNorm1d(self.dim_hidden),
-        )
+        # self.conv_layers = nn.Sequential(
+        #     *conv_layers,
+        #     nn.Conv2d(hidden_chs[-2], hidden_chs[-1], kernel_size=3),
+        #     nn.Flatten(start_dim=1))
+        # self.linear_layers = nn.Sequential(
+        #     nn.Linear(hidden_chs[-1] * 36, self.dim_hidden),
+        #     # nn.Dropout(p=0.1),  # Optional dropout layer
+        #     nn.ReLU(),
+        #     nn.BatchNorm1d(self.dim_hidden),
+        # )
         # Dueling DQN components
 
         self.v1 = nn.Sequential(

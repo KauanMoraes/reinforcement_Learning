@@ -11,3 +11,17 @@ sandbox.ipynb
 models/*
 agents/*
 personal/*
+
+# Ambientes Virtuais
+.venv/
+venv/
+env/
+
+# Arquivos temporários do Python e Cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs de Treinamento e Tensorboard (opcional, mas recomendado)
+runs/
+logs/
