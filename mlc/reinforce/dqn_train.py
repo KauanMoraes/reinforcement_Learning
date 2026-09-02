@@ -60,6 +60,7 @@ class TrainDQN(Base):
         # ADICIONADO: Hiperparâmetros específicos do DQN
         self.batch_size = hparams["batch_size"]
         self.epsilon_start = hparams["epsilon_start"]
+        self.epsilon = self.epsilon_start
         self.epsilon_end = hparams["epsilon_end"]
         self.epsilon_decay = hparams["epsilon_decay"]
         self.target_update_freq = hparams["target_update"]
@@ -111,13 +112,12 @@ class TrainDQN(Base):
 
     # Função para selecionar ação com epsilon-greedy
     def decay_epsilon(self, steps_done):
-        global epsilon
-        epsilon = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * np.exp(-1. * steps_done / self.epsilon_decay)   
+        self.epsilon = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * np.exp(-1. * steps_done / self.epsilon_decay)   
     
     def select_action(self, state, policy_net, n_action, steps_done):
         action = []
         # Para cada ambiente no vetor
-        if random.random() > epsilon :
+        if random.random() > self.epsilon :
             with torch.no_grad():
                 # Pega o valor Q para o estado do ambiente i
                 policy_net.eval() # Modo de avaliação
@@ -307,7 +307,7 @@ class TrainDQN(Base):
                     break
                                                    
             if step == self.hparams["learning_starts"]:
-                print(f"Passo {step}, Episódios concluídos: {episode}, Epsilon: {epsilon:.4f}")
+                print(f"Passo {step}, Episódios concluídos: {episode}, Epsilon: {self.epsilon:.4f}")
             # Treina a rede
             if step > self.hparams["learning_starts"]:
 
@@ -315,7 +315,7 @@ class TrainDQN(Base):
                 
                 if loss is not None:
                     self.writer.add_scalar("loss", loss, episode)
-            self.writer.add_scalar("hyperparameters/epsilon", epsilon, episode)
+            self.writer.add_scalar("hyperparameters/epsilon", self.epsilon, episode)
             self.writer.flush()
             # Atualiza a target network
             if episode % self.target_update_freq == 0:
