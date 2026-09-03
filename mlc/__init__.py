@@ -5,8 +5,16 @@ from pathlib import Path
 
 # import mlc.command.base as base
 from .command.base import Base
-from .data.basedataset import BaseDataset
-from .model.basemodel import BaseModel
+try:
+    # pyrefly: ignore [missing-import]
+    from data.basedataset import BaseDataset
+except ImportError:
+    class BaseDataset: pass
+try:
+    # pyrefly: ignore [missing-import]
+    from model.basemodel import BaseModel
+except ImportError:
+    class BaseModel: pass
 
 # Load all classes from all modules in this package, that are subclasses of Base
 _available_commands = dict()

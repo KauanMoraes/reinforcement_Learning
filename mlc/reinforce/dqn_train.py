@@ -144,9 +144,9 @@ class TrainDQN(Base):
         state_batch = torch.stack(batch[0]).to(self.device)
 
         action_batch = torch.tensor(batch[1], dtype=torch.int64, device=self.device).unsqueeze(1)
-        reward_batch = torch.tensor(batch[2], dtype=torch.float32, device=self.device)
+        reward_batch = torch.tensor(batch[2], dtype=torch.float32, device=self.device) # soma dos rewards após ns passos
 
-        next_state_batch = torch.stack(batch[3]).to(self.device)
+        next_state_batch = torch.stack(batch[3]).to(self.device)  # estado após ns passos
         termination_batch = torch.tensor(batch[4], dtype=torch.float32, device=self.device)
 
         ns_batch = torch.tensor(batch[5], dtype=torch.int64).to(self.device) # how many steps to look ahead

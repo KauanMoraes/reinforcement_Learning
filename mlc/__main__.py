@@ -1,5 +1,6 @@
 import argparse
 import sys
+import yaml
 
 import torch
 
@@ -12,7 +13,8 @@ def main():
     available_commands = get_available_commands()
 
     # create parser
-    parser = argparse.ArgumentParser(description="Machine Learning Command Line Interface")
+    parser = argparse.ArgumentParser(description="Reinforcement Learning Command Line Interface")
+    parser.add_argument("-c", "--config", type=str, help="Path to YAML configuration file")
     parser.add_argument("-D", "--debug", action="store_true", help="Enable debug mode")
     parser.set_defaults(debug=False)
     parser.add_argument("-A", "--detect-anomaly", action="store_true", help="Enable anomaly detection")
@@ -22,6 +24,12 @@ def main():
         subparser = subparsers.add_parser(name, help=cmd_type.__doc__)
         cmd_type.add_arguments(subparser)
     args = parser.parse_args()
+
+    if args.config:
+        with open(args.config, 'r') as f:
+            yaml_args = yaml.safe_load(f)
+            if yaml_args:
+                vars(args).update(yaml_args)
 
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
