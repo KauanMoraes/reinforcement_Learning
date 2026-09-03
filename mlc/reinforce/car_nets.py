@@ -144,9 +144,9 @@ class ModeloDQN(nn.Module):
             nn.BatchNorm1d(128),
             nn.Linear(128, self.dim_out))
     def get_q_values(self, x):
-        v1 = self.v1(x)
-        adv1 = self.adv1(x)
-        q1 = v1 + (adv1 - adv1.mean(dim=1, keepdim=True))
+        v1 = self.v1(x) # média das q-values 
+        adv1 = self.adv1(x) # q-values
+        q1 = v1 + (adv1 - adv1.mean(dim=1, keepdim=True)) # média das q-values + (q-values - média das q-values) = q-values
 
         v2 = self.v2(x)
         adv2 = self.adv2(x)
@@ -157,10 +157,9 @@ class ModeloDQN(nn.Module):
         q3 = v3 + (adv3 - adv3.mean(dim=1, keepdim=True))
 
         return q1, q2, q3
-    def forward(self, x):
+    def forward(self, x) -> torch.Tensor:
         x = self.c_layers(x)
         x = self.linear_layers(x)
         q1, q2, q3 = self.get_q_values(x)
         ensemble = q1 + q2 + q3
-        #duelingQ = self.adv(x) + self.v(x)
         return ensemble #dimensão (batch, dim_out)

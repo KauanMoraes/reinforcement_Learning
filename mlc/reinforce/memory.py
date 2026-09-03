@@ -1,6 +1,7 @@
 from collections import deque
 import numpy as np
 import torch
+import random
 
 class SumTree:
     def __init__(self, capacity):
@@ -95,7 +96,7 @@ class MultistepReplayBuffer:
         
 
     def sample(self, batch_size):
-        import random
+        
         batch = random.sample(self.buffer, batch_size) #lista com batch_size tuplas de 6 tensores
         states, actions, rewards, next_states, dones, ns = zip(*batch) #tupla de 6 tuplas de 64 tensores
         return (states, actions, rewards, next_states, dones, ns)

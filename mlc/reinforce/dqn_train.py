@@ -7,6 +7,7 @@ import ale_py
 import gymnasium as gym
 import numpy as np
 import torch
+import random
 import os
 from torch import nn 
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -132,7 +133,7 @@ class TrainDQN(Base):
         return action
     
     # Função para otimizar o modelo (fazer o update do DQN)
-    def optimize_model(self, policy_net, target_net, optimizer):
+    def optimize_model(self, policy_net: Modelo, target_net: Modelo, optimizer):
         if len(self.memory) < self.batch_size:
             return None # Não treina se o buffer não tiver amostras suficientes
         # Amostra um batch do replay buffer
@@ -151,12 +152,16 @@ class TrainDQN(Base):
         ns_batch = torch.tensor(batch[5], dtype=torch.int64).to(self.device) # how many steps to look ahead
         
         # 1. Calcula Q(s_t, a) - O modelo calcula Q(s_t), e então selecionamos as colunas das ações tomadas
-        q_values = policy_net(state_batch).gather(1, action_batch)
+        q_values = policy_net(state_batch).gather(1, action_batch) # dim = n_batch x 1
         
-        # 2. Calcula V(s_{t+1}) para todos os próximos estados.       
-        # Usa a target_net para maior estabilidade.
+        # 2. Calcula V(s_{t+1}) para todos os próximos estados usando Double DQN.       
         with torch.no_grad():
-            next_q_values = target_net(next_state_batch).max(1)[0]
+            # A policy_net escolhe a melhor ação para o próximo estado
+            best_next_actions = policy_net(next_state_batch).max(1)[1].unsqueeze(1) 
+            # [(max_value,indices)] of dim = n_batch, que transforma em ([best_next_actions]) de dim = n_batch x 1
+            
+            # A target_net avalia o valor dessa ação escolhida
+            next_q_values = target_net(next_state_batch).gather(1, best_next_actions).squeeze(1)
             # O valor do próximo estado é 0 se o episódio terminou.
             next_q_values[termination_batch.bool()] = 0.0
         
@@ -175,7 +180,8 @@ class TrainDQN(Base):
         # 5. Otimiza o modelo
         optimizer.zero_grad()
         loss.backward()
-        # torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100) # Opcional: Gradiente clipping
+        # Gradient clipping para evitar explosão de gradientes
+        torch.nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=10.0)
         optimizer.step()
         return loss.item()
     
@@ -185,15 +191,10 @@ class TrainDQN(Base):
         device = self.device
         self.memory.clear() # Limpa o buffer de memória antes de começar
         env = gym.make("CarRacing-v3", render_mode="rgb_array", lap_complete_percent=0.95, 
-                             domain_randomize=False, continuous=False)#, # DQN é para ações discretas
-        #             stack_size=self.num_stack
-        #         )
-        #         for _ in range(num_env)
-        #     ],
-        #     autoreset_mode=gym.vector.AutoresetMode.NEXT_STEP,
-        # )
+                             domain_randomize=False, continuous=False)
 
-        n_action = 5#env.single_action_space.n
+        # n_action = env.single_action_space.n se fosse vetorizado
+        n_action = env.action_space.n 
 
         # Criação das duas redes: policy e target
         # A classe Modelo deve retornar Q-values (sem softmax no final)
@@ -210,7 +211,7 @@ class TrainDQN(Base):
         target_net.load_state_dict(policy_net.state_dict())
         target_net.eval() # Rede alvo fica em modo de avaliação
 
-        learning_rate = torch.tensor(self.hparams["learning_rate"], dtype=torch.float32)
+        learning_rate = self.hparams["learning_rate"]
         optimizer = torch.optim.Adam(policy_net.parameters(), lr=learning_rate)
         
         
@@ -337,42 +338,6 @@ class TrainDQN(Base):
         self.writer.close()
         env.close()
 
-    def validation(path_dict):
-        pass# Carrega o modelo
-        # path_dict = 
-        # print(f"Carregando modelo de {path_dict['model']}")
-        # model = ModeloDQN()
-        # model.load_state_dict(torch.load(path_dict["model"]))
-        # model.eval()
-
-        # # Inicializa o ambiente
-        # env = gym.make(path_dict["env"])
-        # env = gym.vector.AsyncVectorEnv(
-        #         [
-        #             lambda: gym.wrappers.FrameStackObservation(
-        #                 gym.make("CarRacing-v3", render_mode="rgb_array", lap_complete_percent=0.95, 
-        #                         domain_randomize=False, continuous=False), # DQN é para ações discretas
-        #                 stack_size=self.num_stack
-        #             )
-        #             for _ in range(num_env)
-        #         ],
-        #         autoreset_mode=gym.vector.AutoresetMode.NEXT_STEP,
-        #     )
-
-        #     n_action = env.single_action_space.n
-
-        # obs, _ = env.reset()
-
-        # with torch.no_grad():
-        #     while True:
-        #         # Seleciona a ação
-        #         action = model.act(obs)
-        #         obs, reward, done, info = env.step(action)
-
-        #         if done:
-        #             break
-
-        # env.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -381,6 +346,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     hparams = vars(args)
     t = TrainDQN(hparams) # Nome da classe corrigido
-    if hparams["validation"] and os.path.exists(hparams["validation"]):
-        t.validation(hparams["validation"])
+    # O método de validação não é mais executado diretamente aqui
     t.run()
