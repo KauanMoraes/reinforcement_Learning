@@ -69,17 +69,22 @@ class MultistepReplayBuffer:
     def store(self, state, action, reward, next_state, done):
         self.n_step_buffer.append((state, action, reward, next_state, done)) # retira o estado mais antigo
         if len(self.n_step_buffer) == self.n_step:
-            state, action, _, _, _ = self.n_step_buffer[0]
+            s, a, _, _, _ = self.n_step_buffer[0]
             R, s_n, d_n, n = self._compute_n_return()
-            self.buffer.append((state, action, R, s_n, d_n, n))
-        elif done:    
-            state, action, _, next_state, _ = self.n_step_buffer[0]            
+            self.buffer.append((s, a, R, s_n, d_n, n))
+            
+        if done:
+            # Se o buffer estava cheio, o elemento 0 já foi salvo no `if` acima, 
+            # então descartamos ele antes de salvar o restante.
+            if len(self.n_step_buffer) == self.n_step:
+                self.n_step_buffer.popleft()
+                
+            # Salva todos os estados finais (os últimos n-1 passos)
             while len(self.n_step_buffer) > 0:
-                s,a,_,_,d = self.n_step_buffer[0]
+                s, a, _, _, _ = self.n_step_buffer[0]
                 R, s_n, d_n, n = self._compute_n_return()
-                self.n_step_buffer.popleft() 
-                if d: break           
-            self.buffer.append((state, action, R, next_state, d_n, n))
+                self.buffer.append((s, a, R, s_n, d_n, n))
+                self.n_step_buffer.popleft()
 
     def _compute_n_return(self):
         R = 0
