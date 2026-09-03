@@ -152,6 +152,7 @@ class TrainDQN(Base):
         ns_batch = torch.tensor(batch[5], dtype=torch.int64).to(self.device) # how many steps to look ahead
         
         # 1. Calcula Q(s_t, a) - O modelo calcula Q(s_t), e então selecionamos as colunas das ações tomadas
+        # O valor estimado pela policy_net no estado atual
         q_values = policy_net(state_batch).gather(1, action_batch) # dim = n_batch x 1
         
         # 2. Calcula V(s_{t+1}) para todos os próximos estados usando Double DQN.       
@@ -170,7 +171,7 @@ class TrainDQN(Base):
         incentivo = torch.where(cond, -0.1, 0.0).squeeze().to(self.device) # penaliza ficar parado
         reward_batch += incentivo
         # 3. Calcula o valor Q esperado (alvo)
-        # target = r + gamma * max_a' Q_target(s', a')
+        # estimativa target olhando ns_batch+1 passos a frente
         target_q_values = reward_batch + (self.gamma ** (ns_batch + 1) * next_q_values)
 
         # 4. Calcula o loss (MSE)

@@ -67,7 +67,7 @@ class MultistepReplayBuffer:
         self.position = 0
 
     def store(self, state, action, reward, next_state, done):
-        self.n_step_buffer.append((state, action, reward, next_state, done))
+        self.n_step_buffer.append((state, action, reward, next_state, done)) # retira o estado mais antigo
         if len(self.n_step_buffer) == self.n_step:
             state, action, _, _, _ = self.n_step_buffer[0]
             R, s_n, d_n, n = self._compute_n_return()
@@ -86,8 +86,8 @@ class MultistepReplayBuffer:
         for i,(_, _, r, _, d) in enumerate(self.n_step_buffer):
             R += (self.gamma ** i) * r
             if d: break
-        d_n = self.n_step_buffer[i][4]
-        s_n = self.n_step_buffer[i][3]        
+        d_n = self.n_step_buffer[i][4] # é d
+        s_n = self.n_step_buffer[i][3]
         return R, s_n, d_n, i
 
     def clear(self):
