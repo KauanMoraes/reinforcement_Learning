@@ -12,7 +12,6 @@ import os
 from torch import nn 
 from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import tqdm
-from memory_profiler import profile
 
 from mlc.command.base import Base
 from mlc.reinforce.car_nets import ModeloDQN as Modelo
@@ -30,6 +29,9 @@ class TrainDQN(Base):
         if hparams["device"].startswith("cuda"):
             if torch.cuda.is_available():
                 self.device = torch.device(hparams["device"])
+                print(f"Using device: {self.device}")
+                print(f"CUDA Version: {torch.version.cuda}")
+                print(f"Device Name: {torch.cuda.get_device_name(0)}")
             else:
                 raise RuntimeError("CUDA is not available")
         self.hparams = hparams
@@ -62,6 +64,7 @@ class TrainDQN(Base):
         self.batch_size = hparams["batch_size"]
         self.epsilon_start = hparams["epsilon_start"]
         self.epsilon = self.epsilon_start
+        self.kf=0
         self.epsilon_end = hparams["epsilon_end"]
         self.epsilon_decay = hparams["epsilon_decay"]
         self.target_update_freq = hparams["target_update"]
@@ -179,12 +182,12 @@ class TrainDQN(Base):
         optimizer.step()
         return loss.item()
     
-    @profile 
+    #@profile # teria q rodar: kernprof -l -v .venv/bin/mlc --config mlc/config/params.yaml traindqn_car
     def run(self):
         #num_env = self.hparams["num_env"] 
         device = self.device
         self.memory.clear() # Limpa o buffer de memória antes de começar
-        env = gym.make("CarRacing-v3", render_mode="rgb_array", lap_complete_percent=0.95, 
+        env = gym.make("CarRacing-v3", lap_complete_percent=0.95, #render_mode="rgb_array",
                              domain_randomize=False, continuous=False)
 
         # n_action = env.single_action_space.n se fosse vetorizado
@@ -307,8 +310,9 @@ class TrainDQN(Base):
                         self.writer.add_video("gameplay", vid_tensor, global_step=episode, fps=30)                                                   
                     break
                                                    
-            if step == self.hparams["learning_starts"]:
+            if self.kf ==0 and step >= self.hparams["learning_starts"]:
                 print(f"Passo {step}, Episódios concluídos: {episode}, Epsilon: {self.epsilon:.4f}")
+                self.kf = 1
             # Treina a rede
             if step > self.hparams["learning_starts"]:
 

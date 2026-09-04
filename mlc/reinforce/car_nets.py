@@ -100,14 +100,15 @@ class ModeloDQN(nn.Module):
         #     *conv_layers,
         #     nn.Conv2d(hidden_chs[-2], hidden_chs[-1], kernel_size=3),
         #     nn.Flatten(start_dim=1))
-        # self.linear_layers = nn.Sequential(
-        #     nn.Linear(hidden_chs[-1] * 36, self.dim_hidden),
-        #     # nn.Dropout(p=0.1),  # Optional dropout layer
-        #     nn.ReLU(),
-        #     nn.BatchNorm1d(self.dim_hidden),
-        # )
-        # Dueling DQN components
+        self.linear_layers = nn.Sequential(
+            nn.Linear(hidden_chs[-1] * 36, self.dim_hidden),
+            # nn.Dropout(p=0.1),  # Optional dropout layer
+            nn.ReLU(),
+            nn.BatchNorm1d(self.dim_hidden),
+        )
 
+        # Dueling DQN components
+        
         self.v1 = nn.Sequential(
             nn.Linear(self.dim_hidden,256),
             nn.BatchNorm1d(256),
