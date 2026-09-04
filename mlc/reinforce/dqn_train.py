@@ -115,14 +115,15 @@ class TrainDQN(Base):
     def decay_epsilon(self, steps_done):
         self.epsilon = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * np.exp(-1. * steps_done / self.epsilon_decay)   
     
-    def select_action(self, state, policy_net, n_action, steps_done):
+    def select_action(self, state: torch.Tensor, policy_net, n_action, steps_done):
         action = []
         # Para cada ambiente no vetor
         if random.random() > self.epsilon :
             with torch.no_grad():
                 # Pega o valor Q para o estado do ambiente i
                 policy_net.eval() # Modo de avaliação
-                state = state.to(self.device) # Move o estado para o dispositivo correto
+                # Late casting: Move para GPU e converte para float32 escalado
+                state = state.to(self.device, dtype=torch.float32) / 255.0
                 q_values = policy_net(state)
                 # Escolhe a ação com maior valor Q
                 action = q_values.max(1)[1] # Índices das ações com maior Q-value 
@@ -136,26 +137,24 @@ class TrainDQN(Base):
     def optimize_model(self, policy_net: Modelo, target_net: Modelo, optimizer):
         if len(self.memory) < self.batch_size:
             return None # Não treina se o buffer não tiver amostras suficientes
-        # Amostra um batch do replay buffer
 
-        # Converte o batch de transições para tensores
         batch = self.memory.sample(self.batch_size)
 
-        state_batch = torch.stack(batch[0]).to(self.device)
+        state_batch = torch.stack(batch[0]).to(self.device, dtype=torch.float32) / 255.0
 
         action_batch = torch.tensor(batch[1], dtype=torch.int64, device=self.device).unsqueeze(1)
         reward_batch = torch.tensor(batch[2], dtype=torch.float32, device=self.device) # soma dos rewards após ns passos
 
-        next_state_batch = torch.stack(batch[3]).to(self.device)  # estado após ns passos
+        next_state_batch = torch.stack(batch[3]).to(self.device, dtype=torch.float32) / 255.0  # estado após ns passos
         termination_batch = torch.tensor(batch[4], dtype=torch.float32, device=self.device)
 
         ns_batch = torch.tensor(batch[5], dtype=torch.int64).to(self.device) # how many steps to look ahead
         
-        # 1. Calcula Q(s_t, a) - O modelo calcula Q(s_t), e então selecionamos as colunas das ações tomadas
+        #with torch.autocast(device_type=self.device):
+        # Calcula Q(s_t, a), e então selecionamos as colunas das ações tomadas
         # O valor estimado pela policy_net no estado atual
         q_values = policy_net(state_batch).gather(1, action_batch) # dim = n_batch x 1
-        
-        # 2. Calcula V(s_{t+1}) para todos os próximos estados usando Double DQN.       
+
         with torch.no_grad():
             # A policy_net escolhe a melhor ação para o próximo estado
             best_next_actions = policy_net(next_state_batch).max(1)[1].unsqueeze(1) 
@@ -170,18 +169,16 @@ class TrainDQN(Base):
         cond = (action_batch.squeeze() == 0)
         incentivo = torch.where(cond, -0.1, 0.0).squeeze().to(self.device) # penaliza ficar parado
         reward_batch += incentivo
-        # 3. Calcula o valor Q esperado (alvo)
-        # estimativa target olhando ns_batch+1 passos a frente
+        # Calcula a estimativa target olhando ns_batch+1 passos a frente
         target_q_values = reward_batch + (self.gamma ** (ns_batch + 1) * next_q_values)
 
-        # 4. Calcula o loss (MSE)
+        # Calcula a Loss (MSE)
         criterion = nn.SmoothL1Loss()
         loss = criterion(q_values, target_q_values.unsqueeze(1))
 
-        # 5. Otimiza o modelo
+        # Otimiza o modelo
         optimizer.zero_grad()
         loss.backward()
-        # Gradient clipping para evitar explosão de gradientes
         torch.nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=10.0)
         optimizer.step()
         return loss.item()
@@ -199,22 +196,16 @@ class TrainDQN(Base):
 
         # Criação das duas redes: policy e target
         # A classe Modelo deve retornar Q-values (sem softmax no final)
-        policy_net = Modelo( 
-                            dim_hidden=64,
-                            init_ch=3*self.num_stack,
-                            dim_out=n_action # ADICIONADO: Passa o número de ações para a rede
-                           ).to(device)
-        target_net = Modelo( 
-                            dim_hidden=64,
-                            init_ch=3*self.num_stack,
-                            dim_out=n_action
-                           ).to(device)
+        policy_net = Modelo(dim_hidden=64, init_ch=3*self.num_stack, dim_out=n_action).to(device)
+        target_net = Modelo(dim_hidden=64, init_ch=3*self.num_stack, dim_out=n_action).to(device)
         target_net.load_state_dict(policy_net.state_dict())
-        target_net.eval() # Rede alvo fica em modo de avaliação
+        target_net.eval()
 
         learning_rate = self.hparams["learning_rate"]
         optimizer = torch.optim.Adam(policy_net.parameters(), lr=learning_rate)
         
+        # Inicializa o GradScaler para o AMP (se estiver rodando na GPU)
+        # scaler = torch.cuda.amp.GradScaler() if self.device == "cuda" else None
         
         episode_start = 0
         step = 0
@@ -234,8 +225,9 @@ class TrainDQN(Base):
             
             print(f"Checkpoint carregado. Começando do episódio {episode_start}.")
                
-        def process_obs(obs):
-            obs_tensor = torch.tensor(np.array(obs), dtype=torch.float32) / 255.0
+        def process_obs(obs): # Utilizada na simulação 
+            # Mantém em uint8 na CPU para economizar RAM
+            obs_tensor = torch.tensor(np.array(obs), dtype=torch.uint8)
             H, W, C = obs_tensor.shape
             return obs_tensor.permute(2, 0, 1) # 3, 96, 96
 
@@ -248,7 +240,7 @@ class TrainDQN(Base):
             self.decay_epsilon(step)
             
             state, _ = env.reset(options={"randomize": False})
-            state = process_obs(state).to(device)
+            state = process_obs(state) # Permanece na CPU
             episode_rewards = 0.0 
             episode_frames = [] 
             # No-op
@@ -256,10 +248,10 @@ class TrainDQN(Base):
                 state, _, terminated, truncated, _ = env.step(0)
                 if terminated or truncated:
                     break
-            state = process_obs(state).to(device)
+            state = process_obs(state) # Permanece na CPU
             frame_buffer = deque([state]*self.num_stack,maxlen=self.num_stack)
-            stacked_state = torch.cat(list(frame_buffer), dim = 0).to(device)
-            for time in range(self.hparams["max_steps"]): # Loop "infinito"
+            stacked_state = torch.cat(list(frame_buffer), dim = 0) # Permanece na CPU
+            for time in range(self.hparams["max_steps"]): # Loop dentro do episódio
                 step += 1
                 # Seleciona a ação usando epsilon-greedy
                 if episode < 5 and time < 1000:
@@ -276,21 +268,19 @@ class TrainDQN(Base):
                     if terminations or truncations:
                         break
                     
-                next_state = process_obs(next_obs).to(device)
+                next_state = process_obs(next_obs) # Estado após o frame skipping
                 frame_buffer.append(next_state) # Atualiza o buffer de frames
-                stacked_next_state = torch.cat(list(frame_buffer), dim = 0).to(device) # (C*num_stack, H, W)
+                stacked_next_state = torch.cat(list(frame_buffer), dim = 0) # (C*num_stack, H, W) na CPU
 
                 episode_frames.append(next_obs)               
                 dones = np.logical_or(terminations, truncations)
 
-                # Armazena as transições no replay buffer
-            
-                # Armazena uma transição para cada ambiente
+                # Armazena as transições no replay buffer em uint8
                 self.memory.store(
-                    stacked_state.detach().cpu(), 
+                    stacked_state, 
                     action, 
                     total_reward, 
-                    stacked_next_state.detach().cpu(), 
+                    stacked_next_state, 
                     dones
                 )
                 episode_rewards += total_reward
@@ -313,8 +303,7 @@ class TrainDQN(Base):
             # Treina a rede
             if step > self.hparams["learning_starts"]:
 
-                loss = self.optimize_model(policy_net, target_net, optimizer)
-                
+                loss = self.optimize_model(policy_net, target_net, optimizer)#, scaler=scaler)               
                 if loss is not None:
                     self.writer.add_scalar("loss", loss, episode)
             self.writer.add_scalar("hyperparameters/epsilon", self.epsilon, episode)
@@ -342,10 +331,9 @@ class TrainDQN(Base):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    TrainDQN.add_arguments(parser) # Nome da classe corrigido
+    TrainDQN.add_arguments(parser)
 
     args = parser.parse_args()
     hparams = vars(args)
-    t = TrainDQN(hparams) # Nome da classe corrigido
-    # O método de validação não é mais executado diretamente aqui
+    t = TrainDQN(hparams) 
     t.run()

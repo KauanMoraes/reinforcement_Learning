@@ -58,7 +58,7 @@ class PriorityQueue:
         self.capacity = capacity
 
 class MultistepReplayBuffer:
-    def __init__(self, capacity = 100000, n_step = 10, gamma=0.99):
+    def __init__(self, capacity = 30000, n_step = 10, gamma=0.99):
         self.capacity = capacity
         self.n_step = n_step
         self.gamma = gamma
