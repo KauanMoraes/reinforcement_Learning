@@ -156,7 +156,7 @@ class TrainDQN(Base):
         q_values = policy_net(state_batch).gather(1, action_batch) # dim = n_batch x 1
 
         with torch.no_grad():
-            # A policy_net escolhe a melhor ação para o próximo estado
+            # A policy_net escolhe a melhor ação para o próximo estado ns passos a frente
             best_next_actions = policy_net(next_state_batch).max(1)[1].unsqueeze(1) 
             # [(max_value,indices)] of dim = n_batch, que transforma em ([best_next_actions]) de dim = n_batch x 1
             
@@ -165,10 +165,6 @@ class TrainDQN(Base):
             # O valor do próximo estado é 0 se o episódio terminou.
             next_q_values[termination_batch.bool()] = 0.0
         
-        # Reward Shaping
-        cond = (action_batch.squeeze() == 0)
-        incentivo = torch.where(cond, -0.1, 0.0).squeeze().to(self.device) # penaliza ficar parado
-        reward_batch += incentivo
         # Calcula a estimativa target olhando ns_batch+1 passos a frente
         target_q_values = reward_batch + (self.gamma ** (ns_batch + 1) * next_q_values)
 
@@ -260,11 +256,24 @@ class TrainDQN(Base):
                     action = self.select_action(stacked_state.unsqueeze(0), policy_net, n_action, step)
                                 
                 # Executa a ação no ambiente
-                total_reward = 0
-                #Frame Skipping: executa a ação várias vezes para acelerar o jogo
+                total_shaped_reward = 0
+                total_env_reward = 0
+                # Frame Skipping: executa a ação várias vezes para acelerar o jogo
                 for i in range(4):
-                    next_obs, rewards, terminations, truncations, _ = env.step(action)                
-                    total_reward += rewards
+                    next_obs, reward, terminations, truncations, _ = env.step(action)                
+                    total_env_reward += reward
+                    
+                    # Ações discretas padrão: 0: nada, 1: esquerda, 2: direita, 3: acelerar, 4: frear
+                    shaped_reward = reward
+                    if action == 0:
+                        shaped_reward -= 0.1   # Penalidade severa por não fazer nada
+                    elif action == 3:
+                        shaped_reward += 0.05  # Incentivo leve para manter a aceleração
+                    elif action == 4:
+                        shaped_reward -= 0.05  # Penalidade leve por frear desnecessariamente
+                    
+                    total_shaped_reward += shaped_reward
+
                     if terminations or truncations:
                         break
                     
@@ -279,11 +288,11 @@ class TrainDQN(Base):
                 self.memory.store(
                     stacked_state, 
                     action, 
-                    total_reward, 
+                    total_shaped_reward, 
                     stacked_next_state, 
                     dones
                 )
-                episode_rewards += total_reward
+                episode_rewards += total_env_reward
                 stacked_state = stacked_next_state
                 # Se um episódio terminou
                 if dones:
