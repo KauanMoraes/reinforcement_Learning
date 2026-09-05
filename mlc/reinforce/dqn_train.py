@@ -50,6 +50,7 @@ class TrainDQN(Base):
         # print(f"Link 'latest' criado, apontando para: {self.output_folder}")
             
         self.num_stack = hparams["num_stack"]
+        self.frame_skip = hparams["frame_skip"]
         self.lr_decay = hparams["lr_decay"]
         self.learning_rate = hparams["learning_rate"]
         if hparams["name"]:
@@ -68,6 +69,7 @@ class TrainDQN(Base):
         self.epsilon_end = hparams["epsilon_end"]
         self.epsilon_decay = hparams["epsilon_decay"]
         self.target_update_freq = hparams["target_update"]
+        self.max_grad_norm = hparams["max_grad_norm"]
         self.memory = MultistepReplayBuffer(
             capacity=self.hparams["buffer_size"],
             n_step=5,  
@@ -101,6 +103,7 @@ class TrainDQN(Base):
         # O modo é fixado para discreto, mas o argumento é mantido para compatibilidade
         parser.add_argument("--mode", type=str, default="discrete", choices=["discrete", "continuous"], help="mode of the agent")
         parser.add_argument("--lr_decay", default=False, action="store_true", help="enable learning rate decay")
+        parser.add_argument("--frame_skip", type=int, default=4, help="number of frames to skip for the agent input")
         parser.add_argument("--num_stack", type=int, default=4, help="number of frames to stack for the agent input")
         parser.add_argument("--validation", type=str, default=None, help="path to validation script (not used in training)")
         
@@ -113,6 +116,7 @@ class TrainDQN(Base):
         parser.add_argument("--target-update", type=int, default=10, help="frequency of target network updates")#### mudar p steps? rede aprendendo a morrer rápido p diminuir a dif ?
         parser.add_argument("--learning-starts", type=int, default=2000, help="number of steps before starting training")
         parser.add_argument("--max-steps", type=int, default=1000, help="maximum number of steps per episode")
+        parser.add_argument("--max-grad-norm", type =float,default = 10, help = "max norm of the gradient")
 
     # Função para selecionar ação com epsilon-greedy
     def decay_epsilon(self, steps_done):
@@ -262,7 +266,7 @@ class TrainDQN(Base):
                 total_shaped_reward = 0
                 total_env_reward = 0
                 # Frame Skipping: executa a ação várias vezes para acelerar o jogo
-                for i in range(4):
+                for i in range(self.frame_skip):
                     next_obs, reward, terminations, truncations, _ = env.step(action)                
                     total_env_reward += reward
                     
@@ -326,8 +330,8 @@ class TrainDQN(Base):
                 target_net.load_state_dict(policy_net.state_dict())
                 
             # Checkpoint do modelo
-            if step>0 and step % self.hparams["check_point"] == 0: # Ajuste a frequência de checkpoint
-                checkpoint_path = f'{self.output_folder}/checkpoints/{step:06d}.pt'
+            if episode>2000 and episode % self.hparams["check_point"] == 0: 
+                checkpoint_path = f'{self.output_folder}/checkpoints/{episode:06d}.pt'
                 torch.save({
                     'episode': episode,
                     'step': step,

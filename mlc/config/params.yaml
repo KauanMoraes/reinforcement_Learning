@@ -2,14 +2,20 @@
 learning_rate: 0.0001
 gamma: 0.99
 batch_size: 64
-buffer_size: 15000
+buffer_size: 35000
 num_stack: 4
-max_episodes: 2000
+frame_skip: 4
+max_episodes: 10000
+max_grad_norm: 1.0
 
 # Epsilon
 epsilon_start: 1.0
-epsilon_end: 0.05
-epsilon_decay: 50000
+epsilon_end: 0.10
+epsilon_decay: 200000 #50000
+
+# Simulation
+check_point: 100
+video: 100
 
 # Ambiente
 game: "CarRacing-v3"
