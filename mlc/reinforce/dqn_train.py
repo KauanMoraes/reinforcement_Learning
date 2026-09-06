@@ -66,6 +66,7 @@ class TrainDQN(Base):
         self.epsilon_start = hparams["epsilon_start"]
         self.epsilon = self.epsilon_start
         self.kf=0
+        self.grtst_reward = (None,-np.inf)
         self.epsilon_end = hparams["epsilon_end"]
         self.epsilon_decay = hparams["epsilon_decay"]
         self.target_update_freq = hparams["target_update"]
@@ -113,7 +114,7 @@ class TrainDQN(Base):
         parser.add_argument("--epsilon-start", type=float, default=1, help="starting value of epsilon")
         parser.add_argument("--epsilon-end", type=float, default=0.05, help="final value of epsilon")
         parser.add_argument("--epsilon-decay", type=float, default=50000, help="epsilon decay rate") # quanto menor, maior a velocidade de decaimento
-        parser.add_argument("--target-update", type=int, default=10, help="frequency of target network updates")#### mudar p steps? rede aprendendo a morrer rápido p diminuir a dif ?
+        parser.add_argument("--target-update", type=int, default=20, help="frequency of target network updates")#### mudar p steps? rede aprendendo a morrer rápido p diminuir a dif ?
         parser.add_argument("--learning-starts", type=int, default=2000, help="number of steps before starting training")
         parser.add_argument("--max-steps", type=int, default=1000, help="maximum number of steps per episode")
         parser.add_argument("--max-grad-norm", type =float,default = 10, help = "max norm of the gradient")
@@ -274,10 +275,10 @@ class TrainDQN(Base):
                     shaped_reward = reward
                     if action == 0:
                         shaped_reward -= 0.1   # Penalidade severa por não fazer nada
-                    elif action == 3:
-                        shaped_reward += 0.05  # Incentivo leve para manter a aceleração
-                    elif action == 4:
-                        shaped_reward -= 0.05  # Penalidade leve por frear desnecessariamente
+                    # elif action == 3:
+                    #     shaped_reward += 0.05  # Incentivo leve para manter a aceleração
+                    # elif action == 4:
+                    #     shaped_reward -= 0.05  # Penalidade leve por frear desnecessariamente
                     
                     total_shaped_reward += shaped_reward
 
@@ -295,8 +296,8 @@ class TrainDQN(Base):
                 self.memory.store(
                     stacked_state, 
                     action, 
-                    total_shaped_reward, 
-                    stacked_next_state, 
+                    total_shaped_reward/10, # Reward Scaling 
+                    stacked_next_state,
                     dones
                 )
                 episode_rewards += total_env_reward
@@ -305,6 +306,7 @@ class TrainDQN(Base):
                 if dones:
                     pbar.update(1)
                     self.writer.add_scalar("reward", episode_rewards, episode)
+                    if episode_rewards>= self.grtst_reward[1]: self.grtst_reward= (episode,episode_rewards) 
                     episode_rewards = 0.0 # Reseta a recompensa do episódio
                                 
                     if episode>0 and episode % self.hparams["video"] == 0:

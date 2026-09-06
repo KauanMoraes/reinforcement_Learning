@@ -1,17 +1,18 @@
 # Configurações do DQN
 learning_rate: 0.0001
-gamma: 0.99
+gamma: 0.97
 batch_size: 64
-buffer_size: 35000
+buffer_size: 50000
 num_stack: 4
-frame_skip: 4
-max_episodes: 10000
+frame_skip: 2
+target_update: 50
+max_episodes: 5000
 max_grad_norm: 1.0
 
 # Epsilon
 epsilon_start: 1.0
-epsilon_end: 0.10
-epsilon_decay: 200000 #50000
+epsilon_end: 0.07
+epsilon_decay: 100000 #50000
 
 # Simulation
 check_point: 100
