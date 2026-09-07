@@ -1,13 +1,13 @@
 # Configurações do DQN
 learning_rate: 0.0001
 gamma: 0.97
-batch_size: 64
+batch_size: 64  # tlvz 128 (ver memória)
 buffer_size: 50000
 num_stack: 4
 frame_skip: 2
 target_update: 50
-max_episodes: 5000
-max_grad_norm: 1.0
+max_episodes: 7000
+max_grad_norm: 0.5
 
 # Epsilon
 epsilon_start: 1.0

@@ -64,6 +64,7 @@ class TrainDQN(Base):
         # ADICIONADO: Hiperparâmetros específicos do DQN
         self.batch_size = hparams["batch_size"]
         self.epsilon_start = hparams["epsilon_start"]
+        self.max_episodes = hparams["max_episodes"]
         self.epsilon = self.epsilon_start
         self.kf=0
         self.grtst_reward = (None,-np.inf)
@@ -237,10 +238,10 @@ class TrainDQN(Base):
 
         # Loop de treinamento principal
         print("Iniciando o treinamento...")
-        pbar = tqdm(total=self.hparams["max_episodes"],initial=episode_start, desc="Episódios concluídos")
+        pbar = tqdm(total=self.max_episodes,initial=episode_start, desc="Episódios concluídos")
                 
         # Loop baseado em passos (steps) 
-        for episode in range(episode_start, self.hparams["max_episodes"]):
+        for episode in range(episode_start, self.max_episodes):
             self.decay_epsilon(step)
             
             state, _ = env.reset(options={"randomize": False})
@@ -309,7 +310,7 @@ class TrainDQN(Base):
                     if episode_rewards>= self.grtst_reward[1]: self.grtst_reward= (episode,episode_rewards) 
                     episode_rewards = 0.0 # Reseta a recompensa do episódio
                                 
-                    if episode>0 and episode % self.hparams["video"] == 0:
+                    if episode>=self.max_episodes/3 and episode % self.hparams["video"] == 0:
                         # Converte a lista de frames (T, H, W, C) para um tensor (N, T, C, H, W)
                         video_array = np.array(episode_frames, dtype=np.uint8).transpose(0, 3, 1, 2)
                         vid_tensor = torch.from_numpy(video_array).unsqueeze(0)                       
@@ -332,7 +333,7 @@ class TrainDQN(Base):
                 target_net.load_state_dict(policy_net.state_dict())
                 
             # Checkpoint do modelo
-            if episode>2000 and episode % self.hparams["check_point"] == 0: 
+            if episode>self.max_episodes/3 and episode % self.hparams["check_point"] == 0: 
                 checkpoint_path = f'{self.output_folder}/checkpoints/{episode:06d}.pt'
                 torch.save({
                     'episode': episode,
