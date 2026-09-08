@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from mlc.command.base import Base
 from mlc.reinforce.car_nets import ModeloDQN as Modelo
-from mlc.reinforce.memory import MultistepReplayBuffer
+from mlc.reinforce.memory import MultistepReplayBuffer, PriorityQueue
 from mlc.util.resources import get_time_as_str
 
 
@@ -72,11 +72,15 @@ class TrainDQN(Base):
         self.epsilon_decay = hparams["epsilon_decay"]
         self.target_update_freq = hparams["target_update"]
         self.max_grad_norm = hparams["max_grad_norm"]
+        self.capacity = self.hparams["buffer_size"]
+        self.n_step = 5
+        self.gamma = self.hparams["gamma"]
         self.memory = MultistepReplayBuffer(
-            capacity=self.hparams["buffer_size"],
-            n_step=5,  
-            gamma=self.hparams["gamma"]
+                            capacity=self.capacity,
+                            n_step=self.n_step,  
+                            gamma=self.gamma
         )
+        self.memory_switched = False
 
     @classmethod
     def name(cls):
@@ -116,7 +120,7 @@ class TrainDQN(Base):
         parser.add_argument("--epsilon-end", type=float, default=0.05, help="final value of epsilon")
         parser.add_argument("--epsilon-decay", type=float, default=50000, help="epsilon decay rate") # quanto menor, maior a velocidade de decaimento
         parser.add_argument("--target-update", type=int, default=20, help="frequency of target network updates")#### mudar p steps? rede aprendendo a morrer rápido p diminuir a dif ?
-        parser.add_argument("--learning-starts", type=int, default=2000, help="number of steps before starting training")
+        parser.add_argument("--learning-starts", type=int, default=5000, help="number of steps before starting training")
         parser.add_argument("--max-steps", type=int, default=1000, help="maximum number of steps per episode")
         parser.add_argument("--max-grad-norm", type =float,default = 10, help = "max norm of the gradient")
 
@@ -158,6 +162,13 @@ class TrainDQN(Base):
         termination_batch = torch.tensor(batch[4], dtype=torch.float32, device=self.device)
 
         ns_batch = torch.tensor(batch[5], dtype=torch.int64).to(self.device) # how many steps to look ahead
+
+        if isinstance(self.memory, PriorityQueue):
+            indices= torch.tensor(batch[6], dtype=torch.int64, device=self.device)
+            weights = torch.tensor(batch[7], dtype=torch.float32, device=self.device)
+        else:
+            indices = None
+            weights = np.ones_like(reward_batch)
         
         #with torch.autocast(device_type=self.device):
         # Calcula Q(s_t, a), e então selecionamos as colunas das ações tomadas
@@ -178,8 +189,15 @@ class TrainDQN(Base):
         target_q_values = reward_batch + (self.gamma ** (ns_batch + 1) * next_q_values)
 
         # Calcula a Loss (MSE)
-        criterion = nn.SmoothL1Loss()
-        loss = criterion(q_values, target_q_values.unsqueeze(1))
+        if indices is not None:
+            criterion = nn.SmoothL1Loss(reduction = 'none')
+            elementwise_loss = criterion(q_values, target_q_values.unsqueeze(1))
+            loss = torch.mean(elementwise_loss*weights)
+            td_errors= list(elementwise_loss)
+            self.memory.update_priorities(indices, td_errors)
+        else:
+            criterion = nn.SmoothL1Loss()
+            loss = criterion(q_values, target_q_values.unsqueeze(1))
 
         # Otimiza o modelo
         optimizer.zero_grad()
@@ -254,6 +272,7 @@ class TrainDQN(Base):
                 if terminated or truncated:
                     break
             state = process_obs(state) # Permanece na CPU
+
             frame_buffer = deque([state]*self.num_stack,maxlen=self.num_stack)
             stacked_state = torch.cat(list(frame_buffer), dim = 0) # Permanece na CPU
             for time in range(self.hparams["max_steps"]): # Loop dentro do episódio
@@ -284,15 +303,14 @@ class TrainDQN(Base):
                     total_shaped_reward += shaped_reward
 
                     if terminations or truncations:
-                        break
-                    
+                        break    
                 next_state = process_obs(next_obs) # Estado após o frame skipping
                 frame_buffer.append(next_state) # Atualiza o buffer de frames
                 stacked_next_state = torch.cat(list(frame_buffer), dim = 0) # (C*num_stack, H, W) na CPU
 
                 episode_frames.append(next_obs)               
                 dones = np.logical_or(terminations, truncations)
-
+                
                 # Armazena as transições no replay buffer em uint8
                 self.memory.store(
                     stacked_state, 
@@ -320,6 +338,14 @@ class TrainDQN(Base):
             if self.kf ==0 and step >= self.hparams["learning_starts"]:
                 print(f"Passo {step}, Episódios concluídos: {episode}, Epsilon: {self.epsilon:.4f}")
                 self.kf = 1
+            if episode==7 and not self.memory_switched:
+                new_memory = PriorityQueue(capacity = self.capacity,n_step=self.n_step,gamma=self.gamma)
+                # Copy old data over (optional)
+                for item in self.memory.buffer:
+                    new_memory.tree.add(1.0, item)  # set default priority
+                self.memory = new_memory
+                self.memory_switched = True
+                print("🧠 Switched to Prioritized Replay Buffer.")
             # Treina a rede
             if step > self.hparams["learning_starts"]:
 
