@@ -122,7 +122,7 @@ class TrainDQN(Base):
         parser.add_argument("--target-update", type=int, default=20, help="frequency of target network updates")#### mudar p steps? rede aprendendo a morrer rápido p diminuir a dif ?
         parser.add_argument("--learning-starts", type=int, default=5000, help="number of steps before starting training")
         parser.add_argument("--max-steps", type=int, default=1000, help="maximum number of steps per episode")
-        parser.add_argument("--max-grad-norm", type =float,default = 10, help = "max norm of the gradient")
+        parser.add_argument("--max-grad-norm", type =float,default = 2.0, help = "max norm of the gradient")
 
     # Função para selecionar ação com epsilon-greedy
     def decay_epsilon(self, steps_done):
@@ -204,7 +204,7 @@ class TrainDQN(Base):
         # Otimiza o modelo
         optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=10.0)
+        torch.nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=self.max_grad_norm)
         optimizer.step()
         return loss.item()
     
