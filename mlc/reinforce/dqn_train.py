@@ -190,10 +190,12 @@ class TrainDQN(Base):
 
         # Calcula a Loss (MSE)
         if indices is not None:
+            weights = weights.unsqueeze(1)
+
             criterion = nn.SmoothL1Loss(reduction = 'none')
             elementwise_loss = criterion(q_values, target_q_values.unsqueeze(1))
             loss = torch.mean(elementwise_loss*weights)
-            td_errors= list(elementwise_loss)
+            td_errors= elementwise_loss.detach().cpu().squeeze().numpy()
             self.memory.update_priorities(indices, td_errors)
         else:
             criterion = nn.SmoothL1Loss()

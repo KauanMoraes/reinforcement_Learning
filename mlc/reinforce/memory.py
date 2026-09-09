@@ -124,21 +124,21 @@ class PriorityQueue:
 
         # Check your output
         return (
-            np.array(states), # 1
-            np.array(actions), # 2
-            np.array(rewards, dtype=np.float32), # 3
-            np.array(next_states), # 4
-            np.array(dones, dtype=np.float32), # 5
-            np.array(ns), # 6
-            np.array(indices), # 7
-            np.array(weights, dtype=np.float32) # 8
+            states, # 1
+            actions, # 2
+            rewards, # 3
+            next_states, # 4
+            dones, # 5
+            ns, # 6
+            indices, # 7
+            weights # 8
         )
 
     def update_priorities(self,indices, new_priorities):
         for idx, priority in zip(indices, new_priorities):
             epsilon = 1e-6
-            priority = np.clip(priority, epsilon, None) # 👈 Prevent priority becomes 0
-            self.tree.update(idx, priority) # 👈 Sent back to SumTree
+            priority = np.clip(float(priority), epsilon, None) # 👈 Prevent priority becomes 0
+            self.tree.update(int(idx), priority) # 👈 Sent back to SumTree
             self.max_priority = max(self.max_priority, priority) # 👈 Remain max for new transition
 
     def __len__(self):
