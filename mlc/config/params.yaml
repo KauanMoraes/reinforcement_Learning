@@ -3,7 +3,7 @@ learning_rate: 0.00025
 learning_starts: 5000
 gamma: 0.97
 batch_size: 128 # ver VRAM
-buffer_size: 75000
+buffer_size: 80000
 num_stack: 4
 frame_skip: 2
 target_update: 10
